@@ -6,67 +6,90 @@ import java.util.Date;
 
 
 
-/*
-Create console web scraper (http://en.wikipedia.org/wiki/Web_scraping) utility which:
-
--          accepts as command line parameters:
-o   (must) web resources URL or path to plain text file containing a list of URLs
-o   (must) data command(s)
-o   (must) word (or list of words with “,” delimiter)
-o   (nice to have) output verbosity flag,  if on then the output should contains information about time spend on data scraping and data processing (-v)
-
--          supports the following data processing commands:
-o   (must) count number of provided word(s) occurrence on webpage(s). (-w)
-o   (must) count number of characters of each web page (-c)
-o   (nice to have) extract sentences’ which contain given words (-e)
-
-Data processing results should be printed to output for each web resources separately and for all resources as total.
-
-Command line parameters example for Java implementation:
-java –jar scraper.jar http://www.cnn.com Greece,default –v –w –c –e
- */
 public class Scraper {
+
+    private static ArgsParser argsParser; // is used to check args
+    private static int totalNumChars; //is used for total report
+    private static ArrayList<String> totalSentences = new ArrayList<>(); // contains all sentences from all URLs
+
     public static void main(String[] args) {
         long startTime = new Date().getTime();
-        String[] params = {"http://www.hopetech.com/about-us/", "machines,product", "-v", "-w", "-c", "-e"};
-        try {
-            ArrayList<String> urlList = new ArrayList<>();
-            if (params[0].matches(".*\\.txt"))
-                urlList = getUrls(params[0]);
-            else
-                urlList.add(params[0]);
-            for (String siteName : urlList) {
-                String[] words = params[1].split(",");
-                int[] countWords;
 
-                ArgsParser argsParser = new ArgsParser(params);
+        try {
+
+            ArrayList<String> urlList = new ArrayList<>(); // contains list of urls to scan
+            if (args[0].matches(".*\\.txt")) {
+                urlList = getUrls(args[0]);
+            }
+            else
+                urlList.add(args[0]);
+            String[] words = args[1].split(",");
+            int[] totalCountWords = new int[words.length];
+
+            // loop for every URL
+            for (String siteName : urlList) {
+
+                int[] countWords;
+                long startOneTime = new Date().getTime();
+                argsParser = new ArgsParser(args);
                 UrlParser urlParser = new UrlParser(siteName);
                 String source = urlParser.getResultString();
                 WordsFinder wordsFinder = new WordsFinder(source, words);
                 System.out.println("Result of scraping for " + siteName + ":");
+
+                //making of report starts
+                ReportMaker report = new ReportMaker();
                 if (argsParser.isNeedNumberWords()) {
                     countWords = wordsFinder.getNumWords();
-                    for (int i = 0; i < words.length; i++) {
-                        System.out.println("Number of words \"" + words[i] + "\": " + countWords[i]);
+                    report.addNumWords(words, countWords);
+                    for (int i = 0; i < countWords.length; i++) {
+                        totalCountWords[i] += countWords[i];
                     }
+
+                }
+                if (argsParser.isNeedNumberChars()) {
+                    int numChars = source.length();
+                    report.addNumChars(numChars);
+                    totalNumChars += numChars;
+                }
+                if (argsParser.isNeedSentences()) {
+                    ArrayList<String> sentences = wordsFinder.getSentences();
+                    report.addSentences(sentences);
+                    totalSentences.addAll(sentences);
+
+                }
+                if (argsParser.isNeedTime()) {
+                    long timeSpent = new Date().getTime() - startOneTime;
+                    report.addTime(timeSpent);
+                }
+
+                System.out.println(report.getReport());
+            }
+
+            //making total report
+            if (urlList.size() > 1) {
+                System.out.println("Total result of scraping:");
+                ReportMaker report = new ReportMaker();
+                if (argsParser.isNeedNumberWords()) {
+                    report.addNumWords(words, totalCountWords);
                 }
                 if (argsParser.isNeedNumberChars())
-                    System.out.println("Number of chars in source code is: " + source.length());
+                    report.addNumChars(totalNumChars);
                 if (argsParser.isNeedSentences()) {
-                    System.out.println("List of sentences:");
-                    for (String s : wordsFinder.getSentences()) {
-                        System.out.println(" - " + s);
-                    }
+                    report.addSentences(totalSentences);
                 }
                 if (argsParser.isNeedTime()) {
                     long timeSpent = new Date().getTime() - startTime;
-                    System.out.println("Time spent on data scraping and data processing: " + timeSpent + " ms");
+                    report.addTime(timeSpent);
                 }
+
+                System.out.println(report.getReport());
             }
 
         }
-        catch (IOException e) {
-            System.out.println("Error: IOException");
+        catch (Exception e) {
+            System.out.print("Something went wrong: ");
+            System.out.println(e.toString());
         }
 
 
@@ -78,6 +101,7 @@ public class Scraper {
         BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)));
         while (reader.ready()) {
             urlList.add(reader.readLine().trim());
+
         }
         return urlList;
     }

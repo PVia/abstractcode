@@ -19,13 +19,17 @@ public class UrlParser {
                 int data = reader.read();
                 resultString += (char) data;
             }
+        reader.close();
         return resultString;
     }
 
     //constructor formats url for URL class
     public UrlParser(String siteName) throws MalformedURLException {
+        if (!("" + siteName.charAt(0)).matches("[\\d\\w]"))
+            siteName = siteName.substring(1);
         if (!siteName.matches("http://.*") && !siteName.matches("https://.*"))
             siteName = "http://" + siteName;
+        System.out.println(siteName);
         this.siteName = new URL(siteName);
     }
 
